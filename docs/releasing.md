@@ -1,0 +1,44 @@
+<!--
+Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+All rights reserved.
+
+SPDX-License-Identifier: BSD-3-Clause
+-->
+
+# Releasing
+
+The project uses semantic versioning. Until the plugin and artifact contracts
+stabilize, releases remain in the `0.x` series.
+
+## Release checklist
+
+1. Run linting and the complete CPU-only test suite.
+2. Build the wheel and install it into a fresh virtual environment.
+3. Build the Docker image for both `linux/amd64` and `linux/arm64`.
+4. Run a synthetic bisection from the installed console command.
+5. Run a short `docker-reconstruct` range on a supported GPU host.
+6. Verify `report.md`, `summary.json`, `probe_range.json`, and attempt artifacts.
+7. Confirm all documented compatibility limits remain accurate.
+8. Tag the exact tested commit as `v<version>`.
+
+The tag workflow publishes:
+
+- `ghcr.io/<owner>/isaaclab-bisection-agent:<version>`
+- `ghcr.io/<owner>/isaaclab-bisection-agent:latest`
+
+Production automation should pin the immutable image digest, not `latest`.
+
+## Clean-clone acceptance
+
+Before announcing a release to other developers, validate from a new clone on a
+host that does not have the source checkout on `PYTHONPATH`:
+
+```bash
+python -m venv /tmp/isaaclab-bisect-release
+source /tmp/isaaclab-bisect-release/bin/activate
+python -m pip install .
+isaaclab-bisect --help
+```
+
+Then run one synthetic workflow and one Docker reconstruction smoke test against
+an explicitly supplied `--repo_root`.

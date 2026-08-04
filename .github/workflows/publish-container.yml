@@ -1,0 +1,43 @@
+# Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish container
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Build and publish
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}"
+          version="${VERSION#v}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file docker/Dockerfile \
+            --build-arg "AGENT_VERSION=${version}" \
+            --tag "${image}:${version}" \
+            --tag "${image}:latest" \
+            --push \
+            .
