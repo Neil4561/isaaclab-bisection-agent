@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from .security import validate_path_component, validate_relative_path, validate_runner_extra_args
+
 
 @dataclass(frozen=True)
 class RunnerSpec:
@@ -31,6 +33,10 @@ class RunnerSpec:
     synthetic_first_bad_ref: str | None = None
     synthetic_good_value: float | None = None
     synthetic_bad_value: float | None = None
+
+    def __post_init__(self) -> None:
+        """Validate legacy passthrough arguments against a narrow allowlist."""
+        validate_runner_extra_args(self.extra_args)
 
     @classmethod
     def from_json(cls, data: dict[str, Any] | None) -> RunnerSpec | None:
@@ -233,6 +239,12 @@ class ToolingSpec:
     schema_version: int = 1
     tooling_spec_hash: str = ""
 
+    def __post_init__(self) -> None:
+        """Keep every tooling path inside the immutable snapshot."""
+        validate_relative_path(self.snapshot_relpath, "tooling.snapshot_relpath")
+        validate_relative_path(self.driver_relpath, "tooling.driver_relpath")
+        validate_relative_path(self.result_builder_relpath, "tooling.result_builder_relpath")
+
     def to_json(self) -> dict[str, Any]:
         """Serialize the tooling contract."""
         return asdict(self)
@@ -285,6 +297,11 @@ class BisectionPlan:
     measurement: MeasurementPolicy = field(default_factory=MeasurementPolicy)
     tooling: ToolingSpec | None = None
     schema_version: int = 3
+
+    def __post_init__(self) -> None:
+        """Validate identifiers before they become run-directory components."""
+        validate_path_component(self.task_id, "task_id")
+        validate_path_component(self.backend_key, "backend_key")
 
     def to_json(self) -> dict[str, Any]:
         """Serialize the plan to JSON."""

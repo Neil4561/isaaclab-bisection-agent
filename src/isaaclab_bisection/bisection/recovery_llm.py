@@ -37,6 +37,7 @@ from .recovery import (
     RecoveryDecision,
     _skip_category_for,
 )
+from .security import redact_sensitive_text
 
 _PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "recovery.md"
 
@@ -71,7 +72,7 @@ def _context_prompt(ctx: RecoveryContext, *, budget_left: int) -> str:
         "env_status": env_status,
         "log_tail": ctx.log_tail,
     }
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return redact_sensitive_text(json.dumps(payload, indent=2, sort_keys=True))
 
 
 @dataclass
@@ -80,7 +81,7 @@ class LLMRecoveryPolicy:
 
     Args:
         model: Model name for the OpenAI-compatible endpoint.
-        base_url: Endpoint base URL (defaults to the provider default).
+        base_url: Explicit OpenAI-compatible endpoint base URL.
         max_attempts: Retry budget; beyond it the outcome is accepted as a skip.
         api_key_env: Environment variable holding the API key.
     """

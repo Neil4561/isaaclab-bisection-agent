@@ -27,7 +27,8 @@ Example:
   "runner": {
     "mode": "docker-reconstruct",
     "image": "isaaclab-bisection-agent:dev",
-    "gpu_model": "NVIDIA L40S"
+    "gpu_model": "NVIDIA L40S",
+    "trust_target_code": true
   },
   "task": {
     "num_envs": 512,

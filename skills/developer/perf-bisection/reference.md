@@ -21,6 +21,7 @@ isaaclab-bisect benchmark-commit \
     --tooling_ref <TOOLING_SHA> \
     --work_dir /tmp/benchmark-commit \
     --runner_mode local-reconstruct \
+    --trust_target_code \
     --task_id Isaac-Velocity-Flat-G1-v0 \
     --backend_key newton \
     --num_envs 512 \
@@ -44,6 +45,7 @@ isaaclab-bisect bisect-range \
     --tooling_ref <TOOLING_SHA> \
     --work_dir /tmp/bisect-run \
     --runner_mode docker-reconstruct \
+    --trust_target_code \
     --image isaaclab-bisection-agent:dev \
     --task_id Isaac-Velocity-Flat-G1-v0 \
     --backend_key newton \
@@ -76,6 +78,23 @@ The adapter preserves canonical harness artifacts rather than creating a second
 result format. Its response is a small envelope containing status, process code,
 the primary canonical result, and artifact paths. Fanes Agent and other
 automation should parse the response file and archive the work directory.
+
+## Upstream Skill Handoffs
+
+The reviewed upstream Skill pins are stored in
+`src/isaaclab_bisection/upstream_skills.lock.json`.
+
+- Use `isaaclab-installing-isaac-lab` before measurement only when the operator
+  needs a current host installation. It does not reconstruct historical commits.
+- Use `isaaclab-setup-troubleshooting` for host/current-checkout failures, not to
+  reinterpret candidate skips.
+- Use `isaaclab-selecting-backends` before resolving the plan when backend choice
+  is unclear.
+- Use `profile-isaac-sim` after a culprit is identified and only when its
+  release-build profiling workflow applies.
+
+Generate immutable installation commands with
+`isaaclab-bisect-upstream-skills commands --agent cursor`.
 
 ## Pinned Tooling and Support Window
 

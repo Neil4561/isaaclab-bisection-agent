@@ -16,3 +16,10 @@ SPDX-License-Identifier: BSD-3-Clause
   stack-diff diagnosis.
 - Added bounded deterministic and optional LLM setup recovery.
 - Added reusable benchmark, threshold, and range-bisection Agent Skills.
+- Added commit-pinned handoffs to official setup, backend-selection, and
+  post-bisection profiling Skills.
+- Added NVIDIA Agent Security Readiness evidence, automated dependency/container
+  scanning, and generated-artifact credential scans.
+- Hardened candidate credential isolation, LLM endpoint validation,
+  model-requested diagnostics, Docker privileges/networking, image pinning, and
+  container argument transport.

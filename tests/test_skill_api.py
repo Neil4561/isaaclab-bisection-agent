@@ -46,7 +46,8 @@ def test_build_benchmark_command_maps_nested_contract() -> None:
         "runner": {
             "mode": "docker-reconstruct",
             "image": "image:tag",
-            "extra_args": ["--env_cache_dir", "/cache/envs"],
+            "trust_target_code": True,
+            "extra_args": ["--install_scope", "newton,isaacsim"],
         },
         "task": {"num_envs": 64, "camera_resolution": [64, 48], "hydra_args": ["presets=newton"]},
         "metric": {"result_path": "resource_diag.ram_used_gb_peak", "regression_direction": "increase"},
@@ -59,8 +60,9 @@ def test_build_benchmark_command_maps_nested_contract() -> None:
     assert command[command.index("--repo_root") + 1] == "/target/IsaacLab"
     assert command[command.index("--commit") + 1] == "candidate"
     assert command[command.index("--runner_mode") + 1] == "docker-reconstruct"
-    assert "--runner_extra_arg=--env_cache_dir" in command
-    assert "--runner_extra_arg=/cache/envs" in command
+    assert "--trust_target_code" in command
+    assert "--runner_extra_arg=--install_scope" in command
+    assert "--runner_extra_arg=newton,isaacsim" in command
     assert command[command.index("--camera_resolution") + 1 : command.index("--camera_resolution") + 3] == ["64", "48"]
     assert "--hydra_arg=presets=newton" in command
     assert command[command.index("--runs") + 1] == "2"

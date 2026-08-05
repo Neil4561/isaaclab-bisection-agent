@@ -18,8 +18,13 @@ stabilize, releases remain in the `0.x` series.
 4. Run a synthetic bisection from the installed console command.
 5. Run a short `docker-reconstruct` range on a supported GPU host.
 6. Verify `report.md`, `summary.json`, `probe_range.json`, and attempt artifacts.
-7. Confirm all documented compatibility limits remain accurate.
-8. Tag the exact tested commit as `v<version>`.
+7. Confirm `security_scan.json` passes and Security CI reports no unresolved
+   High/Critical dependency or container vulnerability.
+8. For NVIDIA deployment, attach current nSpect vulnerability, secret, and
+   malware evidence; confirm PLC/TAVA/cards/testing/portal gates are complete.
+9. Confirm all documented compatibility and security limits remain accurate.
+10. Obtain human release approval, then tag the exact tested commit as
+    `v<version>`.
 
 The tag workflow publishes:
 
@@ -27,6 +32,8 @@ The tag workflow publishes:
 - `ghcr.io/<owner>/isaaclab-bisection-agent:latest`
 
 Production automation should pin the immutable image digest, not `latest`.
+The `release` GitHub environment must require a human reviewer before the tag
+workflow can publish.
 
 ## Clean-clone acceptance
 

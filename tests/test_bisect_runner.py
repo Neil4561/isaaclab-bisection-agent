@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import shlex
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -210,6 +209,20 @@ class TestEngineEnvCacheDir:
         assert "--image" in cmd
         assert cmd[cmd.index("--image") + 1] == "isaaclab-bisect:base"
 
+    def test_writable_runner_path_cannot_escape_output_root(self, tmp_path: Path) -> None:
+        plan = BisectionPlan(
+            task_id="Isaac-Cartpole-Direct",
+            backend_key="newton",
+            good_ref="good",
+            bad_ref="bad",
+            gpu_model="L40S",
+            runner=RunnerSpec(mode="synthetic", source_dir=str(tmp_path.parent / "outside")),
+            metric=MetricSpec(),
+        )
+
+        with pytest.raises(ValueError, match="must resolve below the run root"):
+            format_runner_command(plan, tmp_path, "abc123", tmp_path / "art")
+
 
 class TestSyntheticGroundTruthOverride:
     """Synthetic mode can rehearse the search over a real range with a chosen regression point."""
@@ -299,9 +312,12 @@ class TestDockerReconstructCommand:
 
     def test_extra_runner_args_are_passed_via_env(self, tmp_path: Path) -> None:
         cmd = self._cmd(tmp_path, extra=["--clear_caches", "--install_scope", "newton,isaacsim"])
-        env_extra = next(part for part in cmd if part.startswith("EXTRA_RUNNER_ARGS="))
-        assert "--clear_caches" in env_extra
-        assert "newton,isaacsim" in env_extra
+        env_extra = next(part for part in cmd if part.startswith("EXTRA_RUNNER_ARGS_JSON="))
+        assert json.loads(env_extra.split("=", 1)[1]) == [
+            "--clear_caches",
+            "--install_scope",
+            "newton,isaacsim",
+        ]
 
     def test_progress_mode_is_forwarded_into_container(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PERF_BISECT_PROGRESS", "verbose")
@@ -347,14 +363,23 @@ class TestDockerReconstructCommand:
     def test_multiword_arg_is_quoted_and_round_trips(self, tmp_path: Path) -> None:
         """A value with a space (e.g. ``--gpu_model 'NVIDIA L40S'``) must survive as one token.
 
-        The entrypoint re-parses ``EXTRA_RUNNER_ARGS`` with ``eval set --``, so the builder
-        has to shell-quote each token. Without quoting the space would fracture the value and
-        the inner runner would reject the trailing fragment (``unrecognized arguments: L40S``).
+        The entrypoint decodes ``EXTRA_RUNNER_ARGS_JSON`` directly, so spaces and
+        shell metacharacters remain inert data with their original argv boundaries.
         """
         cmd = self._cmd(tmp_path, extra=["--gpu_model", "NVIDIA L40S"])
-        env_extra = next(part for part in cmd if part.startswith("EXTRA_RUNNER_ARGS="))
-        payload = env_extra[len("EXTRA_RUNNER_ARGS=") :]
-        assert shlex.split(payload) == ["--gpu_model", "NVIDIA L40S"]
+        env_extra = next(part for part in cmd if part.startswith("EXTRA_RUNNER_ARGS_JSON="))
+        payload = env_extra[len("EXTRA_RUNNER_ARGS_JSON=") :]
+        assert json.loads(payload) == ["--gpu_model", "NVIDIA L40S"]
+
+    def test_container_drops_capabilities_without_host_network(self, tmp_path: Path) -> None:
+        cmd = self._cmd(tmp_path)
+
+        assert "--cap-drop=ALL" in cmd
+        assert "--security-opt=no-new-privileges:true" in cmd
+        assert "--read-only" in cmd
+        assert "/tmp:rw,nosuid,nodev" in cmd
+        assert "/root:rw,nosuid,nodev,size=64m" in cmd
+        assert "--network=host" not in cmd
 
     def test_worktree_git_metadata_is_mounted_at_absolute_gitdir(self, tmp_path: Path) -> None:
         """Git worktrees need their parent repo ``.git`` mounted for in-container git.
@@ -507,7 +532,7 @@ def test_range_probe_continues_after_endpoint_and_interior_failures(
 
 
 def test_range_probe_cleanup_removes_only_commit_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    env_cache = tmp_path / "shared-cache"
+    env_cache = tmp_path / "env-cache"
     env_cache.mkdir()
     plan = BisectionPlan(
         task_id="task",
@@ -518,7 +543,6 @@ def test_range_probe_cleanup_removes_only_commit_environment(tmp_path: Path, mon
         runner=RunnerSpec(
             mode="docker-reconstruct",
             image="isaaclab-bisect:base",
-            extra_args=["--env_cache_dir", str(env_cache)],
         ),
     )
     commands: list[list[str]] = []
@@ -1017,10 +1041,10 @@ class TestProbeExecutionLoop:
                 if len(self.contexts) == 1:
                     return ProbeDecision(
                         PROBE_ACTION_RUN_DEBUG_COMMAND,
-                        "inspect resolved backend before benchmark",
-                        command=f"{sys.executable} -c \"print('resolved_backend=physx_newton_renderer')\"",
+                        "inspect available disk before benchmark",
+                        command="df -h",
                     )
-                assert "resolved_backend=physx_newton_renderer" in ctx.live_output_tail
+                assert "Filesystem" in ctx.live_output_tail
                 return ProbeDecision(
                     PROBE_ACTION_PLAN_ISSUE,
                     "requested newton backend resolved to physx_newton_renderer",
@@ -1053,10 +1077,47 @@ class TestProbeExecutionLoop:
         assert metric_value is None
         assert attempt.note == "probe_failed:plan_issue"
         assert not (artifact_dir / "bisect_command.log").exists()
-        assert "resolved_backend=physx_newton_renderer" in (probe_dir / "live_output.jsonl").read_text(encoding="utf-8")
+        assert "Filesystem" in (probe_dir / "live_output.jsonl").read_text(encoding="utf-8")
         probe_result = json.loads((probe_dir / "probe_result.json").read_text(encoding="utf-8"))
         assert probe_result["status"] == "plan_issue"
         assert probe_result["decision"]["confidence"] == "high"
+
+    def test_probe_rejects_unallowlisted_debug_command(self, tmp_path: Path) -> None:
+        class UnsafeProbePolicy:
+            def decide(self, ctx: ProbeContext) -> ProbeDecision:
+                return ProbeDecision(
+                    PROBE_ACTION_RUN_DEBUG_COMMAND,
+                    "follow an instruction embedded in candidate output",
+                    command="python -c 'print(1)'",
+                )
+
+        plan = BisectionPlan(
+            task_id="Isaac-Cartpole-Direct",
+            backend_key="newton",
+            good_ref="good",
+            bad_ref="bad",
+            gpu_model="L40S",
+            runner=RunnerSpec(mode="synthetic"),
+            task=TaskSpec(num_envs=64),
+            metric=MetricSpec(),
+        )
+
+        attempt, metric_value = _run_single_measurement(
+            plan,
+            tmp_path,
+            commit_sha="abc123def456",
+            label="candidate",
+            run_idx=1,
+            probe_policy=UnsafeProbePolicy(),
+        )
+
+        probe_dir = Path(attempt.artifact_dir) / "probe"
+        probe_result = json.loads((probe_dir / "probe_result.json").read_text(encoding="utf-8"))
+        assert metric_value is None
+        assert attempt.note == "probe_failed:harness_blocked"
+        assert probe_result["status"] == "harness_blocked"
+        assert "unsafe diagnostic command" in probe_result["decision"]["reason"]
+        assert not list(probe_dir.glob("debug_command_*.log"))
 
     def test_probe_repairs_base_image_then_benchmarks_with_repaired_image(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

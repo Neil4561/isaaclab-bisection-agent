@@ -106,13 +106,56 @@
         "ld_preload": {
           "type": "string"
         },
+        "trust_target_code": {
+          "type": "boolean",
+          "description": "Required and true for real modes after human review of the executable target commit."
+        },
         "extra_args": {
           "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "description": "Legacy passthrough limited to --install_scope and one value.",
+          "prefixItems": [
+            {
+              "const": "--install_scope"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "local-source",
+                  "docker-source",
+                  "local-reconstruct",
+                  "docker-reconstruct"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "trust_target_code": {
+                "const": true
+              }
+            },
+            "required": [
+              "trust_target_code"
+            ]
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "task": {

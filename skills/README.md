@@ -23,3 +23,8 @@ isaaclab-bisect-skill --input request.json --output response.json
 
 The Skills are orchestration guidance. Deterministic Python code remains the
 source of truth for metric extraction, thresholds, and bisection verdicts.
+
+The `isaaclab-perf-bisection` router can also hand off host onboarding, setup
+troubleshooting, backend selection, and post-bisection profiling to a small set
+of [pinned official Skills](../docs/upstream-skills.md). Those Skills remain
+optional and outside the candidate execution and verdict paths.

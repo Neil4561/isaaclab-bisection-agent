@@ -26,7 +26,9 @@ test = [
 [project.scripts]
 isaaclab-bisect = "isaaclab_bisection.cli:main"
 isaaclab-bisect-runner = "isaaclab_bisection.runner:main"
+isaaclab-bisect-scan-artifacts = "isaaclab_bisection.artifact_security:main"
 isaaclab-bisect-skill = "isaaclab_bisection.skill_api:main"
+isaaclab-bisect-upstream-skills = "isaaclab_bisection.upstream_skills:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -35,6 +37,7 @@ where = ["src"]
 isaaclab_bisection = [
     "prompts/*.md",
     "tasks.json",
+    "upstream_skills.lock.json",
 ]
 
 [tool.pytest.ini_options]

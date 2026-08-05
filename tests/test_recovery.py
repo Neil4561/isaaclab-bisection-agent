@@ -425,6 +425,20 @@ class TestLLMRecoveryPolicyGuardrails:
         decision = policy.decide(_ctx("runner_command_failed"))
         assert decision.action == ACTION_RETRY_CLEAR_CACHES
 
+    def test_redacts_candidate_log_before_model_handoff(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        policy = self._policy()
+        captured: dict[str, str] = {}
+
+        def _complete(system: str, user: str) -> str:
+            captured["user"] = user
+            return '{"action": "accept", "reason": "stop"}'
+
+        monkeypatch.setattr(policy._client, "complete", _complete)
+        policy.decide(_ctx("runner_command_failed", log_tail="Authorization: Bearer top-secret"))
+
+        assert "top-secret" not in captured["user"]
+        assert "Bearer <redacted>" in captured["user"]
+
     def test_falls_back_when_model_unreachable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from isaaclab_bisection.bisection.llm_client import LLMError
 

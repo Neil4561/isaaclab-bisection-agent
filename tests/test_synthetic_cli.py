@@ -137,3 +137,44 @@ result = {
     summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
     assert summary["status"] == "completed"
     assert summary["suspected_first_bad_commit"] == first_bad_sha
+
+
+def test_real_runner_requires_explicit_target_trust_confirmation(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "task_id": "Isaac-Cartpole-Direct",
+                "backend_key": "physx",
+                "good_ref": "good",
+                "bad_ref": "bad",
+                "gpu_model": "L40S",
+                "runner": {"mode": "docker-reconstruct", "image": "image:tag"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "isaaclab_bisection.cli",
+            "benchmark-commit",
+            "--plan",
+            str(plan),
+            "--commit",
+            "candidate",
+            "--repo_root",
+            str(tmp_path / "target"),
+            "--work_dir",
+            str(tmp_path / "output"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "SECURITY_BLOCKED=real runner modes require --trust_target_code" in result.stderr

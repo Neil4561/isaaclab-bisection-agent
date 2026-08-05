@@ -24,8 +24,18 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-DEFAULT_BASE_URL = "https://api.openai.com/v1"
+from .security import validate_llm_base_url
+
+DEFAULT_BASE_URL = None
 DEFAULT_API_KEY_ENV = "OPENAI_API_KEY"
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so credentials never move to a different endpoint."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Reject every redirect response."""
+        raise urllib.error.HTTPError(req.full_url, code, "LLM endpoint redirects are disabled", headers, fp)
 
 
 class LLMError(RuntimeError):
@@ -38,7 +48,7 @@ class ChatClient:
 
     Args:
         model: Model name passed through to the endpoint.
-        base_url: OpenAI-compatible base URL; defaults to :data:`DEFAULT_BASE_URL`.
+        base_url: Explicit OpenAI-compatible base URL.
         api_key_env: Environment variable holding the API key.
         timeout_s: Per-request timeout.
         temperature: Sampling temperature (kept low for stable, structured output).
@@ -56,8 +66,11 @@ class ChatClient:
         Raises:
             LLMError: If the endpoint is unreachable or the response has no content.
         """
-        base = (self.base_url or DEFAULT_BASE_URL).rstrip("/")
-        api_key = os.environ.get(self.api_key_env, "")
+        try:
+            base = validate_llm_base_url(self.base_url)
+        except ValueError as exc:
+            raise LLMError(str(exc)) from exc
+        api_key = os.environ.get(self.api_key_env, "") if self.api_key_env else ""
         payload = {
             "model": self.model,
             "temperature": self.temperature,
@@ -66,21 +79,22 @@ class ChatClient:
                 {"role": "user", "content": user},
             ],
         }
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         request = urllib.request.Request(
             f"{base}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
+            headers=headers,
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+            opener = urllib.request.build_opener(_NoRedirect)
+            with opener.open(request, timeout=self.timeout_s) as response:
                 body = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, ValueError) as exc:
             raise LLMError(f"chat completion request failed: {exc}") from exc
         try:
             return body["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
-            raise LLMError(f"chat completion response missing content: {body}") from exc
+            raise LLMError("chat completion response missing content") from exc

@@ -24,7 +24,7 @@
 # Required environment variables:
 #   COMMIT_SHA, TASK_ID, BACKEND
 # Optional:
-#   EXTRA_RUNNER_ARGS  extra flags forwarded verbatim to the runner (word-split)
+#   EXTRA_RUNNER_ARGS_JSON  JSON array of extra flags forwarded to the runner
 
 set -euo pipefail
 set -f  # keep bracketed install selectors like ov[ovrtx] from glob-expanding
@@ -68,11 +68,21 @@ PY
     fi
 fi
 
-# EXTRA_RUNNER_ARGS is a shell-quoted argv string built by the runner. Re-parse
-# it with ``eval set --`` so quoted tokens (e.g. a GPU model like "NVIDIA L40S")
-# reconstruct as single arguments instead of being word-split into fragments.
-# ``set -f`` above keeps any glob-like tokens (e.g. install selectors) literal.
-eval "set -- ${EXTRA_RUNNER_ARGS:-}"
+# Decode the runner's JSON argv without evaluating it as shell syntax.
+extra_args_file="$(mktemp)"
+python3 - <<'PY' > "${extra_args_file}"
+import json
+import os
+import sys
+
+payload = json.loads(os.environ.get("EXTRA_RUNNER_ARGS_JSON", "[]"))
+if not isinstance(payload, list) or not all(isinstance(item, str) for item in payload):
+    raise SystemExit("EXTRA_RUNNER_ARGS_JSON must be a JSON array of strings")
+for item in payload:
+    sys.stdout.buffer.write(item.encode("utf-8") + b"\0")
+PY
+mapfile -d '' -t extra_args < "${extra_args_file}"
+rm -f "${extra_args_file}"
 
 # Release images bake the package under /opt. A caller may explicitly mount a
 # development checkout at /agent to override that code without rebuilding.
@@ -90,4 +100,4 @@ exec python3 -m isaaclab_bisection.runner \
     --env_cache_dir /env-cache \
     --jit_cache /cache/jit-root \
     --kit_cache /cache/kit-root \
-    "$@"
+    "${extra_args[@]}"

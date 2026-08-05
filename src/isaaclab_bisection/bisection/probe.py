@@ -23,6 +23,7 @@ from typing import Any, Protocol
 
 from .base_image_repair import ALLOWED_APT_PACKAGES
 from .llm_client import ChatClient, LLMError
+from .security import redact_sensitive_text
 
 PROBE_ACTION_READY = "ready"
 PROBE_ACTION_RUN_DEBUG_COMMAND = "run_debug_command"
@@ -117,7 +118,7 @@ def _context_prompt(ctx: ProbeContext) -> str:
         "allowed_actions": sorted(PROBE_ACTIONS),
         "allowed_apt_packages": sorted(ALLOWED_APT_PACKAGES),
     }
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return redact_sensitive_text(json.dumps(payload, indent=2, sort_keys=True))
 
 
 @dataclass

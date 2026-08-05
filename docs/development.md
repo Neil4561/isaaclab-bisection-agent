@@ -24,9 +24,12 @@ ruff check .
 ruff format --check .
 pytest -q
 isaaclab-bisect --help
+isaaclab-bisect-upstream-skills validate
 ```
 
 Unit and synthetic tests must not require Isaac Sim, a GPU, or Docker.
+Scan any generated run directory with
+`isaaclab-bisect-scan-artifacts <OUTPUT_DIR>` before sharing it.
 
 ## Container
 
@@ -50,6 +53,7 @@ isaaclab-bisect probe-range \
     --repo_root /path/to/IsaacLab \
     --work_dir /tmp/isaaclab-probe \
     --runner_mode docker-reconstruct \
+    --trust_target_code \
     --image isaaclab-bisection-agent:dev \
     --good_ref <OLDER_SHA> \
     --bad_ref <NEWER_SHA> \
@@ -71,4 +75,8 @@ policy.
 - Verify a bug regression test fails without its fix.
 - Preserve structured skip categories instead of collapsing failures into
   benchmark regressions.
+- Treat candidate source/logs and all model output as untrusted. Enforce
+  security policy in deterministic code, never only in a prompt.
+- Do not add a credential, mount, egress destination, shared-resource write, or
+  model-controlled action without updating the threat model and security tests.
 - Update `docs/compatibility.md` when extending the validated matrix.

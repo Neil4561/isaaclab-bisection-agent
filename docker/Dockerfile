@@ -18,9 +18,9 @@
 #
 # Build from the repository root:
 #   docker build -f docker/Dockerfile -t isaaclab-bisection-agent:dev .
-FROM ghcr.io/astral-sh/uv:0.11.20 AS uv
+FROM ghcr.io/astral-sh/uv:0.11.20@sha256:eaa5f1a3305307aaf9e67fe2bbba1d85ebbb2d8a63bce23af21797bfafbe0f8b AS uv
 
-FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
+FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04@sha256:92906d87596d638d35015c6353053121bd299d25943b875763321653884ba924
 
 ARG AGENT_VERSION=0.1.0a1
 LABEL org.opencontainers.image.title="IsaacLab Bisection Agent"

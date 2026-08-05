@@ -26,6 +26,7 @@ from ..task_config import TaskConfig, caches_for_backend, get_task
 from .git_utils import git, resolve_ref
 from .io import read_json_or_empty
 from .models import BisectionPlan, TaskSpec, ToolingSpec
+from .security import resolve_path_within
 
 TOOLING_CONTRACT_ID = "perf_smoke_runtime_bundle_v1:raw_fps_mean:steady_state"
 TOOLING_SNAPSHOT_RELPATH = "tooling/perf_smoke_test"
@@ -238,7 +239,10 @@ def materialize_tooling_snapshot(plan: BisectionPlan, repo_root: Path, output_di
     if plan.tooling is None:
         raise ValueError("plan.tooling is required")
     spec = plan.tooling
-    destination = output_dir / spec.snapshot_relpath
+    unresolved_destination = output_dir / spec.snapshot_relpath
+    if unresolved_destination.is_symlink():
+        raise ToolingError("tooling_path_unsafe", "tooling snapshot destination must not be a symbolic link")
+    destination = resolve_path_within(output_dir, spec.snapshot_relpath, "tooling.snapshot_relpath")
     if destination.exists():
         shutil.rmtree(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)

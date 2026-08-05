@@ -55,6 +55,7 @@ isaaclab-bisect benchmark-commit \
     --tooling_ref <TOOLING_SHA> \
     --work_dir /tmp/isaaclab-benchmark \
     --runner_mode docker-reconstruct \
+    --trust_target_code \
     --image isaaclab-bisection-agent:dev \
     --task_id Isaac-Cartpole-Direct \
     --backend_key physx \
@@ -79,6 +80,7 @@ isaaclab-bisect probe-range \
     --tooling_ref <TOOLING_SHA> \
     --work_dir /tmp/isaaclab-probe \
     --runner_mode docker-reconstruct \
+    --trust_target_code \
     --image isaaclab-bisection-agent:dev \
     --task_id Isaac-Cartpole-Direct \
     --backend_key physx \
@@ -101,6 +103,7 @@ isaaclab-bisect bisect-range \
     --tooling_ref <TOOLING_SHA> \
     --work_dir /tmp/isaaclab-bisect \
     --runner_mode docker-reconstruct \
+    --trust_target_code \
     --image isaaclab-bisection-agent:dev \
     --task_id Isaac-Cartpole-Direct \
     --backend_key physx \
@@ -139,6 +142,8 @@ Important outputs include:
 - `probe_range.json`: non-authoritative compatibility sweep results.
 - `measurements/` and `results/`: attempt logs and per-candidate evidence.
 - `relaunch.json`: an argv handoff for an equivalent host.
+- `security_scan.json`: value-free credential finding locations; a `blocked`
+  status prohibits sharing until reviewed and remediated.
 
 Setup and tooling incompatibilities are structured skips, not performance
 verdicts. See [the compatibility policy](docs/compatibility.md).
@@ -156,11 +161,21 @@ isaaclab-bisect-skill --input request.json --output response.json
 The adapter preserves the canonical artifacts and returns a small response
 envelope for Fanes Agent or other automation.
 
+Optional official IsaacLab/Isaac Sim Skills can provide host onboarding,
+backend selection, setup troubleshooting, and post-bisection profiling. Their
+reviewed sources are commit-pinned and they never run in the candidate or verdict
+paths. See [upstream Skill integration](docs/upstream-skills.md).
+
 ## Development and release
 
 - [Development and validation](docs/development.md)
 - [Compatibility policy](docs/compatibility.md)
 - [Optional LLM policies](docs/llm-policies.md)
+- [Optional upstream Skills](docs/upstream-skills.md)
+- [NVIDIA security readiness](docs/security-readiness.md)
+- [Security threat model](docs/security-threat-model.md)
+- [Security test plan](docs/security-test-plan.md)
+- [Draft agent and Skill cards](docs/agent-card.md), [Skill cards](docs/skill-cards.md)
 - [Release process](docs/releasing.md)
 
 The core has no required third-party Python dependency. Tests, linting, and

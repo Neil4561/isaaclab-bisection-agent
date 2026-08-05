@@ -8,8 +8,10 @@
 from __future__ import annotations
 
 import json
+import os
 import selectors
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -18,6 +20,7 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
+from ..artifact_security import scan_artifacts
 from .artifacts import finalize_run_artifacts, write_attempt_summary
 from .base_image_repair import docker_build_command, write_repair_dockerfile
 from .env_setup import resolve_stack
@@ -52,6 +55,7 @@ from .recovery import (
     RecoveryPolicy,
     knobs_for_action,
 )
+from .security import parse_probe_debug_command, resolve_path_within
 from .tooling import verify_attempt_tooling
 
 # Hard ceiling on recovery retries per measurement, guarding against a misbehaving
@@ -183,6 +187,8 @@ def format_runner_command(
     if plan.runner is None:
         raise ValueError("plan.runner is required to run a bisection candidate.")
 
+    output_dir = output_dir.resolve()
+    artifact_dir = resolve_path_within(output_dir, artifact_dir, "artifact_dir")
     repo_root = (repo_root or Path.cwd()).resolve()
     context = _template_context(repo_root, output_dir, commit_sha, artifact_dir, plan)
     runner = plan.runner
@@ -209,7 +215,7 @@ def format_runner_command(
         cmd.extend(
             [
                 "--tooling_root",
-                str(output_dir / plan.tooling.snapshot_relpath),
+                str(resolve_path_within(output_dir, plan.tooling.snapshot_relpath, "tooling.snapshot_relpath")),
                 "--tooling_spec_hash",
                 plan.tooling.tooling_spec_hash,
                 "--tooling_bundle_hash",
@@ -232,6 +238,8 @@ def format_runner_command(
     }
     for flag, value in optional_args.items():
         if value:
+            if flag in {"--source_dir", "--jit_cache", "--kit_cache"}:
+                value = str(resolve_path_within(output_dir, value, flag))
             cmd.extend([flag, value])
     # Forward the inline task definition (Option B) so the runner can resolve the task
     # without a tasks.json entry. Omitted fields fall back to the registry in the runner.
@@ -285,6 +293,24 @@ def _command_display(command: list[str] | str) -> str:
     return command if isinstance(command, str) else shlex.join(command)
 
 
+def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate a timed-out subprocess and every descendant in its session."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=5)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    process.wait(timeout=5)
+
+
 def _run_command(
     command: list[str] | str,
     *,
@@ -327,6 +353,7 @@ def _run_command(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                start_new_session=True,
             )
             assert process.stdout is not None
             selector = selectors.DefaultSelector()
@@ -353,7 +380,7 @@ def _run_command(
             while True:
                 if timeout_s is not None and time.monotonic() - start > timeout_s:
                     timed_out = True
-                    process.kill()
+                    _terminate_process_tree(process)
                     break
                 for key, _ in selector.select(timeout=1.0):
                     line = key.fileobj.readline()
@@ -410,6 +437,20 @@ def _write_summary(output_dir: Path, plan: BisectionPlan, summary: BisectionSumm
     """Write enriched summary + run-level handoff artifacts."""
     payload = finalize_run_artifacts(output_dir, plan.to_json(), summary.to_json())
     write_json(output_dir / "summary.json", payload)
+    security_scan = scan_artifacts(output_dir)
+    write_json(output_dir / "security_scan.json", security_scan)
+    payload["artifact_security"] = {
+        "status": security_scan["status"],
+        "finding_count": security_scan["finding_count"],
+        "report": "security_scan.json",
+    }
+    write_json(output_dir / "summary.json", payload)
+    if security_scan["findings"]:
+        get_progress_reporter().event(
+            "SECURITY",
+            f"artifact sharing blocked: {security_scan['finding_count']} potential credential(s); "
+            "review security_scan.json",
+        )
 
 
 def build_candidates(plan: BisectionPlan, repo_root: Path | None = None) -> dict:
@@ -836,8 +877,18 @@ def _run_probe_loop(
                     status="harness_blocked",
                 )
                 return "probe_failed:harness_blocked", active_plan
+            try:
+                debug_command = parse_probe_debug_command(decision.command)
+            except ValueError as exc:
+                blocker = ProbeDecision(
+                    PROBE_ACTION_HARNESS_BLOCKED,
+                    f"probe requested unsafe diagnostic command: {exc}",
+                    confidence="high",
+                )
+                _write_probe_result(probe_dir, blocker, status="harness_blocked")
+                return "probe_failed:harness_blocked", active_plan
             command_log = probe_dir / f"debug_command_{attempt + 1}.log"
-            exit_code, timed_out, duration_s = _run_command(decision.command, command_log=command_log, timeout_s=600)
+            exit_code, timed_out, duration_s = _run_command(debug_command, command_log=command_log, timeout_s=600)
             append_jsonl(
                 probe_dir / "probe_events.jsonl",
                 {
@@ -1371,11 +1422,6 @@ def _cleanup_probe_environment(plan: BisectionPlan, output_dir: Path, commit_sha
         return None
 
     env_cache_dir = output_dir / "env-cache"
-    for index, argument in enumerate(runner.extra_args):
-        if argument == "--env_cache_dir" and index + 1 < len(runner.extra_args):
-            env_cache_dir = Path(runner.extra_args[index + 1])
-        elif argument.startswith("--env_cache_dir="):
-            env_cache_dir = Path(argument.split("=", 1)[1])
     if not env_cache_dir.exists():
         return True
 

@@ -81,7 +81,7 @@ def test_engine_invokes_package_runner_with_target_repo(tmp_path: Path) -> None:
         _plan(),
         tmp_path / "output",
         "abc123",
-        tmp_path / "artifacts",
+        tmp_path / "output" / "artifacts",
         repo_root=target_repo,
     )
 

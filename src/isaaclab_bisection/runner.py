@@ -58,6 +58,7 @@ from .bisection.env_setup import (  # noqa: E402
     with_arm_libgomp_preload,
 )
 from .bisection.git_utils import is_ancestor, resolve_ref  # noqa: E402
+from .bisection.security import candidate_subprocess_environment  # noqa: E402
 from .bisection.tooling import tooling_bundle_hash  # noqa: E402
 from .contracts import BenchResult  # noqa: E402
 from .launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config  # noqa: E402
@@ -518,7 +519,7 @@ def _reset_source_dir(source_dir: Path) -> None:
 def _materialize_source_clone(source_dir: Path, commit_sha: str, repo_root: Path | None = None) -> None:
     """Clone (if absent), fetch, hard-checkout ``commit_sha``, and clean the tree."""
     repo_root = (repo_root or Path.cwd()).resolve()
-    git_env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
+    git_env = {**candidate_subprocess_environment(), "GIT_LFS_SKIP_SMUDGE": "1"}
     if not (source_dir / ".git").exists():
         source_dir.parent.mkdir(parents=True, exist_ok=True)
         _run(["git", "clone", "--no-checkout", str(repo_root), str(source_dir)], env=git_env)
@@ -820,7 +821,14 @@ def _run_docker_source_benchmark(
         "bash",
         "--gpus",
         "all",
-        "--network=host",
+        "--cap-drop=ALL",
+        "--pids-limit",
+        "4096",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev",
+        "--tmpfs",
+        "/root:rw,nosuid,nodev,size=64m",
         "--security-opt=no-new-privileges:true",
         "--ulimit",
         "nofile=65536:65536",
@@ -899,7 +907,7 @@ def _run_local_source_benchmark(
     env = _with_tooling_pythonpath(
         with_arm_libgomp_preload(
             {
-                **os.environ,
+                **candidate_subprocess_environment(),
                 "OMNI_KIT_ACCEPT_EULA": "yes",
                 "ACCEPT_EULA": "Y",
                 "OMNI_KIT_DISABLE_CUP": "1",
@@ -963,7 +971,7 @@ def _run_reconstructed_benchmark(
     env = _with_tooling_pythonpath(
         with_arm_libgomp_preload(
             {
-                **os.environ,
+                **candidate_subprocess_environment(),
                 "VIRTUAL_ENV": str(env_dir),
                 "PATH": f"{env_dir / 'bin'}:{os.environ.get('PATH', '')}",
                 "OMNI_KIT_ACCEPT_EULA": "yes",
@@ -1046,12 +1054,9 @@ def _docker_reconstruct_command(
     source mount) against the target repository and candidate checkout. Pure and
     side-effect-free so it can be unit-tested without Docker.
     """
-    # EXTRA_RUNNER_ARGS carries the inner-runner argv. Shell-quote each token so
-    # values containing spaces survive as a single argument (e.g. a GPU model like
-    # "NVIDIA L40S"): the entrypoint re-parses this with ``eval set --``, which
-    # honours the quoting and reconstructs exact argv boundaries. Without quoting,
-    # the entrypoint's word splitting would fracture any multi-word value.
-    extra = " ".join(shlex.quote(arg) for arg in extra_runner_args)
+    # JSON preserves exact argv boundaries without asking the shell to evaluate
+    # model-, plan-, or operator-controlled text in the container entrypoint.
+    extra = json.dumps(extra_runner_args, separators=(",", ":"))
     git_metadata_mounts = _worktree_git_metadata_mounts(repo_root)
     agent_mount = ["-v", f"{agent_root}:/agent:ro"] if agent_root is not None else []
     return [
@@ -1065,7 +1070,14 @@ def _docker_reconstruct_command(
         "10",
         "--gpus",
         "all",
-        "--network=host",
+        "--cap-drop=ALL",
+        "--pids-limit",
+        "4096",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev",
+        "--tmpfs",
+        "/root:rw,nosuid,nodev,size=64m",
         "--security-opt=no-new-privileges:true",
         "--ulimit",
         "nofile=65536:65536",
@@ -1076,7 +1088,7 @@ def _docker_reconstruct_command(
         "-e",
         f"BACKEND={backend_key}",
         "-e",
-        f"EXTRA_RUNNER_ARGS={extra}",
+        f"EXTRA_RUNNER_ARGS_JSON={extra}",
         "-e",
         "OMNI_KIT_ACCEPT_EULA=yes",
         "-e",

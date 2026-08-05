@@ -118,6 +118,13 @@ def _parse_args() -> argparse.Namespace:
     local.add_argument("--ld_preload", default=None)
     local.add_argument("--runner_extra_arg", action="append", default=[])
     local.add_argument(
+        "--trust_target_code",
+        action="store_true",
+        help=(
+            "Required for real runner modes: confirm a human reviewed the target repository/commits as executable code."
+        ),
+    )
+    local.add_argument(
         "--synthetic_first_bad_ref",
         default=None,
         help="For --runner_mode synthetic only: commit ref treated as the ground-truth first-bad "
@@ -276,6 +283,13 @@ def _parse_args() -> argparse.Namespace:
     commit.add_argument("--local_env_dir", default=None)
     commit.add_argument("--ld_preload", default=None)
     commit.add_argument("--runner_extra_arg", action="append", default=[])
+    commit.add_argument(
+        "--trust_target_code",
+        action="store_true",
+        help=(
+            "Required for real runner modes: confirm a human reviewed the target repository/commit as executable code."
+        ),
+    )
     commit.add_argument("--num_envs", type=int, default=None)
     commit.add_argument("--num_frames", type=int, default=None)
     commit.add_argument("--warmup_frames", type=int, default=None)
@@ -355,6 +369,8 @@ def _build_recovery_policy(args: argparse.Namespace):
         return DeterministicRecoveryPolicy(max_attempts=args.recovery_max_retries)
     if not args.model:
         raise SystemExit("--recovery llm requires --model")
+    if not args.base_url:
+        raise SystemExit("--recovery llm requires an explicit --base_url")
     from .bisection.recovery_llm import LLMRecoveryPolicy
 
     return LLMRecoveryPolicy(
@@ -371,6 +387,8 @@ def _build_probe_policy(args: argparse.Namespace):
         return None
     if not args.model:
         raise SystemExit("--probe llm requires --model")
+    if not args.base_url:
+        raise SystemExit("--probe llm requires an explicit --base_url")
     from .bisection.probe import LLMProbePolicy
 
     return LLMProbePolicy(
@@ -425,6 +443,8 @@ def _run_probe_selftest(args: argparse.Namespace) -> int:
     """
     if not args.model:
         raise SystemExit("probe-selftest requires --model")
+    if not args.base_url:
+        raise SystemExit("probe-selftest requires an explicit --base_url")
     from .bisection.probe import LLMProbePolicy, ProbeContext
 
     scenarios = {
@@ -653,6 +673,13 @@ def main() -> int:
         plan = _load_plan(args.plan) if args.plan else _plan_from_benchmark_args(args)
     else:
         plan = _load_plan(args.plan)
+    runner_mode = plan.runner.mode if plan.runner else "unknown"
+    if args.command != "dry-run" and runner_mode != "synthetic" and not getattr(args, "trust_target_code", False):
+        reason = "real runner modes require --trust_target_code after human review of the executable target history"
+        write_status(output_dir, phase="security_preflight", status="blocked", reason="target_trust_not_confirmed")
+        progress.event("BLOCKED", reason)
+        print(f"[bisection_harness] SECURITY_BLOCKED={reason}", file=sys.stderr)
+        return 2
     progress.event(
         "START",
         f"{args.command} task={plan.task_id}/{plan.backend_key} "

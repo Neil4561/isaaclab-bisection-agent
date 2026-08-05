@@ -50,6 +50,7 @@ from pathlib import Path
 from ..hashing import stable_hash
 from ..image_era import parse_env_file, read_env_base_from_commit
 from .git_utils import git, resolve_ref
+from .security import candidate_subprocess_environment
 
 # Default ``./isaaclab.sh -i`` scope. The core submodules (incl. isaaclab_tasks and
 # the renderer packages) are editable-installed on every ``-i``; the tokens here
@@ -591,7 +592,10 @@ def ensure_env(
     env_dir.parent.mkdir(parents=True, exist_ok=True)
     log_path = root / "logs" / f"install-{stack.commit_sha[:12]}.log"
     install_env = with_omniverse_eula_acceptance(
-        with_uv_download_tuning(with_arm_libgomp_preload({**os.environ, "VIRTUAL_ENV": str(env_dir)}), cache_root=root)
+        with_uv_download_tuning(
+            with_arm_libgomp_preload({**candidate_subprocess_environment(), "VIRTUAL_ENV": str(env_dir)}),
+            cache_root=root,
+        )
     )
     install_env.pop("CONDA_PREFIX", None)  # ensure isaaclab.sh targets the new venv
 
@@ -649,7 +653,7 @@ def ensure_env(
     rc, out = _run_logged(
         ["uv", "venv", str(env_dir), "--python", interpreter],
         cwd=source,
-        env=with_uv_download_tuning({**os.environ}, cache_root=root),
+        env=with_uv_download_tuning(candidate_subprocess_environment(), cache_root=root),
         log_path=log_path,
         timeout_s=timeout_s,
     )

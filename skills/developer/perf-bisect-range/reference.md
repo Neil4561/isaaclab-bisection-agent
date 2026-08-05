@@ -22,9 +22,10 @@ IsaacLab clone.
     "mode": "docker-reconstruct",
     "image": "isaaclab-bisection-agent:dev",
     "gpu_model": "NVIDIA L40S",
+    "trust_target_code": true,
     "extra_args": [
-      "--env_cache_dir",
-      "/var/cache/isaaclab-bisection/envs"
+      "--install_scope",
+      "newton,isaacsim"
     ]
   },
   "task": {

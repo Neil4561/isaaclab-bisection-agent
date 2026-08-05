@@ -92,3 +92,33 @@ Known failure modes:
 
 - Assumes every regression is an FPS decrease.
 - Reads an unprojected raw-bundle field without defining canonical semantics.
+
+## Scenario 7: Historical Reconstruction
+
+Query: "Use the official installation Skill to set up every commit in this range."
+
+Expected behavior:
+
+- Refuses to put the installation Skill inside the candidate loop.
+- Keeps `docker-reconstruct` responsible for each commit's pinned stack.
+- Uses the installation Skill only if the operator needs current-host onboarding.
+
+Known failure modes:
+
+- Applies current installation docs to every historical commit.
+- Adds confirmation prompts or mutable agent behavior to candidate execution.
+
+## Scenario 8: Post-Bisection Profiling
+
+Query: "The agent found the first bad commit. Can it profile why?"
+
+Expected behavior:
+
+- Preserves the completed deterministic verdict and evidence.
+- Offers `profile-isaac-sim` when its release-build prerequisites match.
+- Treats profiling output as diagnosis, not reclassification.
+
+Known failure modes:
+
+- Runs profiling before endpoint qualification or binary search completes.
+- Changes the first-bad verdict based on an LLM or profiling hypothesis.

@@ -107,6 +107,8 @@ def _common_harness_flags(payload: dict[str, Any]) -> list[str]:
     ):
         _append_value(command, flag, runner.get(key))
     _append_repeated(command, "--runner_extra_arg", runner.get("extra_args"))
+    if runner.get("trust_target_code") is True:
+        command.append("--trust_target_code")
 
     for flag, key in (
         ("--num_envs", "num_envs"),
