@@ -36,9 +36,10 @@ The normal test suite must verify:
 - Prompt text is redacted before LLM handoff.
 - Probe diagnostics accept only the exact read-only command allowlist and reject
   shell operators, interpreters, network clients, and destructive commands.
-- Docker commands drop all Linux capabilities, set `no-new-privileges`, bound
-  process count, avoid host networking, and mount target/tooling source
-  read-only.
+- Docker commands drop all Linux capabilities before adding only the documented
+  package-manager capability set for reconstruction, set
+  `no-new-privileges`, bound process count, avoid host networking, and mount
+  target/tooling source read-only.
 - Serialized runner arguments round-trip as JSON and never pass through shell
   evaluation.
 - Artifact scanning detects representative private keys, bearer tokens,

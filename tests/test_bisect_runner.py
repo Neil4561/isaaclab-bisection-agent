@@ -375,6 +375,15 @@ class TestDockerReconstructCommand:
         cmd = self._cmd(tmp_path)
 
         assert "--cap-drop=ALL" in cmd
+        assert {argument.removeprefix("--cap-add=") for argument in cmd if argument.startswith("--cap-add=")} == {
+            "CHOWN",
+            "DAC_OVERRIDE",
+            "FOWNER",
+            "FSETID",
+            "SETGID",
+            "SETUID",
+            "SETFCAP",
+        }
         assert "--security-opt=no-new-privileges:true" in cmd
         # Reconstruction runs candidate-native package installers, including
         # apt, so only source/tooling mounts can be read-only.

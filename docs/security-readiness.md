@@ -25,8 +25,10 @@ Implemented:
   arbitrary model-generated shell.
 - Candidate processes receive a minimal environment with credentials removed.
 - Docker reconstruction uses read-only source/tooling mounts, no host network,
-  no Docker socket, all capabilities dropped, `no-new-privileges`, and a process
-  limit. Base images are pinned by immutable manifest digest.
+  no Docker socket, `no-new-privileges`, and a process limit. It drops all
+  capabilities before adding only the seven file-ownership and identity
+  capabilities required by candidate-native package managers. Base images are
+  pinned by immutable manifest digest.
 - Serialized runner arguments cross the container boundary as JSON, not `eval`.
 - Real runs require an explicit human target-code trust confirmation; plan
   identifiers, tooling paths, and writable run paths reject traversal, while

@@ -20,9 +20,11 @@ sandbox against hostile kernel or GPU workloads.
 
 Local runner modes execute candidate code with the user's identity and are not
 appropriate for untrusted repositories. Docker modes mount only the target
-repository and run-scoped caches, drop Linux capabilities, prevent privilege
-escalation, and do not use host networking. They still have outbound network
-access because reconstruction downloads pinned packages.
+repository and run-scoped caches, constrain Linux capabilities, prevent new
+privileges, and do not use host networking. Reconstruction retains only the
+file-ownership and identity capabilities required by candidate-native package
+managers. It still has outbound network access because reconstruction downloads
+pinned packages.
 
 Every real runner invocation requires `--trust_target_code`; supply it only
 after a human reviews the repository identity and exact candidate/tooling

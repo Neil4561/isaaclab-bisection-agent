@@ -107,7 +107,7 @@ and enforce deployment-level egress allowlists for sensitive investigations.
 
 - Candidate workloads can consume CPU, memory, disk, processes, GPU memory, and
   network bandwidth. The engine enforces timeouts and bounded retries; Docker
-  drops capabilities and limits process count; probe loops are bounded.
+  limits capabilities and process count; probe loops are bounded.
 - Environment and cache growth can exhaust disk. Preflight checks and optional
   probe-environment cleanup reduce this risk.
 
@@ -116,8 +116,10 @@ host. Use disposable infrastructure, quotas, monitoring, and periodic rebuilds.
 
 ### Elevation of privilege
 
-- Containers run with `no-new-privileges`, all Linux capabilities dropped, a
-  bounded process count, read-only source/tooling mounts, and no Docker socket.
+- Containers run with `no-new-privileges`, a bounded process count, read-only
+  source/tooling mounts, and no Docker socket. Reconstruction drops all Linux
+  capabilities, then adds only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`,
+  `SETGID`, `SETUID`, and `SETFCAP` for candidate-native package installation.
 - Shell evaluation of serialized runner arguments has been removed; arguments
   cross the container boundary as JSON.
 - LLM-generated shell is never executed generally. Only exact read-only
