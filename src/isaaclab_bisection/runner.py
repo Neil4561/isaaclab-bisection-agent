@@ -1073,7 +1073,6 @@ def _docker_reconstruct_command(
         "--cap-drop=ALL",
         "--pids-limit",
         "4096",
-        "--read-only",
         "--tmpfs",
         "/tmp:rw,nosuid,nodev",
         "--tmpfs",

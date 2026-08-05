@@ -124,8 +124,10 @@ host. Use disposable infrastructure, quotas, monitoring, and periodic rebuilds.
   diagnostics are accepted and are launched without a shell.
 
 Residual risk: the container currently runs as root inside its namespace and has
-GPU device access. Approved infrastructure must account for container, driver,
-and kernel escape risk.
+GPU device access. Its ephemeral root filesystem is writable because historical
+installers invoke the system package manager; target and tooling mounts remain
+read-only. Approved infrastructure must account for container, driver, and
+kernel escape risk.
 
 ## Prompt injection and persistent context
 

@@ -51,7 +51,9 @@ Residual limitations:
   enforce a deployment-specific domain allowlist.
 - Local runner modes execute trusted candidate code with the user's filesystem
   identity.
-- The container runs as root inside its namespace.
+- The reconstruction container runs as root with a writable ephemeral root
+  filesystem because candidate-native installers use the system package
+  manager. Target and tooling mounts remain read-only.
 - Public GitHub scanning is not a substitute for NVIDIA nSpect malware,
   vulnerability, and secret evidence.
 

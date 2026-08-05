@@ -376,7 +376,9 @@ class TestDockerReconstructCommand:
 
         assert "--cap-drop=ALL" in cmd
         assert "--security-opt=no-new-privileges:true" in cmd
-        assert "--read-only" in cmd
+        # Reconstruction runs candidate-native package installers, including
+        # apt, so only source/tooling mounts can be read-only.
+        assert "--read-only" not in cmd
         assert "/tmp:rw,nosuid,nodev" in cmd
         assert "/root:rw,nosuid,nodev,size=64m" in cmd
         assert "--network=host" not in cmd
